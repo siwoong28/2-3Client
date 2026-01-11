@@ -6,6 +6,7 @@ import playerProfileImg from '../assets/player-start-profile.png';
 import npc2_1 from '../assets/npc2-1.png';
 import npc2_2 from '../assets/npc2-2.png';
 import npc2_3 from '../assets/npc2-3.png';
+import npc1_2 from '../assets/npc1-2.png';
 import npc_profile1 from '../assets/npc-profile1.png';
 import npc_profile2 from '../assets/npc-profile2.png';
 import npc_profile3 from '../assets/npc-profile3.png';
@@ -262,6 +263,96 @@ const EnemyhpBarFill = styled.div<{ $hp: number }>`
   background: linear-gradient(90deg, #FF6344 0%, #FFF583 100%);
   transition: width 0.4s ease;
 `;
+const VictorySpecialOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  color: white;
+  text-align: center;
+  font-family: 'Cafe24ClassicType';
+`;
+
+const VictoryTitle = styled.div`
+  font-size: 80px;
+  font-weight: bold;
+  margin-bottom: 20px;
+`;
+
+const VictorySubTitle = styled.div`
+  font-size: 30px;
+`;
+
+// --- 스타일 정의 수정 (기존 코드 덮어쓰기) ---
+
+// 패배 전체 배경 (어두운 정도 유지)
+const DefeatSpecialOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  letter-spacing : -3px;
+  align-items: center;
+  z-index: 200;
+  color: white;
+  text-align: center;
+`;
+
+// "패배" 타이틀 (효과 제거, 더 진하고 선명하게)
+const DefeatTitle = styled.div`
+  font-size: 85px; /* 크기 약간 키움 */
+  font-weight: 900; /* 훨씬 두껍게 */
+  color: #FF1B1B; /* 더 진하고 강렬한 빨간색 */
+  margin-bottom: 15px;
+`;
+
+// "다시 플레이 하시겠습니까?" (깔끔하게 유지)
+const DefeatSubTitle = styled.div`
+  font-size: 36px;
+  font-weight: bold;
+  margin-bottom: 200px; /* 버튼과 간격 넓힘 */
+`;
+
+// 버튼 컨테이너 (간격 조정)
+const ButtonContainer = styled.div`
+  display: flex;
+  flex-direction: column; /* 사진처럼 세로로 배치 */
+  gap: 25px; /* 버튼 사이 간격 */
+  width: 100%;
+  align-items: center;
+`;
+
+// 버튼 공통 스타일 (사진처럼 넓고 납작하게)
+const DefeatButton = styled.button`
+  width: 400px; /* 훨씬 넓게 */
+  height: 85px; /* 높이는 적당히 */
+  font-size: 34px;
+  font-weight: bold;
+  border: none;
+  border-radius: 10px; /* 모서리 둥글기 줄임 */
+  cursor: pointer;
+  color: white;
+  transition: filter 0.2s; /* 클릭 시 밝기 변화 */
+
+`;
+
+// '예' 버튼 (사진 같은 분홍색 그라데이션)
+const YesButton = styled(DefeatButton)`
+  background: linear-gradient(267deg, #F70492 0.36%, #FF9AD5 100%);
+`;
+
+// '아니오' 버튼 (사진 같은 붉은색 그라데이션)
+const NoButton = styled(DefeatButton)`
+  background: linear-gradient(87deg, #F70492 0%, #FF1B1B 100%);
+`;
+
+// --- 스타일 정의 수정 끝 ---
 
 const ComputerLabPage = () => {
   const [step, setStep] = useState(1);
@@ -271,9 +362,13 @@ const ComputerLabPage = () => {
   const PLAYER_MAX_HP = 100000;
   const ENEMY_MAX_HP = 50000;
 
-  const [playerHp, setPlayerHp] = useState(100000);
+  const [playerHp, setPlayerHp] = useState(0);
   const [enemyHp, setEnemyHp] = useState(50000);
 
+  const [currentBg, setCurrentBg] = useState(background2);
+  const [showVictoryEffect, setShowVictoryEffect] = useState(false);
+
+  const [showDefeatEffect, setShowDefeatEffect] = useState(false);
 
 
   const playerHpPercent = (playerHp / PLAYER_MAX_HP) * 100;
@@ -311,6 +406,8 @@ const ComputerLabPage = () => {
     { speaker: 'teachers', situation: 'victory', text: '알겠어. 말리지 않을게' },
     { speaker: 'sebaschan', situation: 'victory', text: '좋아 이제 다른 곳을 가자!' },
   ];
+
+  const isLastLine = currentLine === dialogues.length - 1;
 
   const speakerConfig = {
     player: {
@@ -351,7 +448,10 @@ const ComputerLabPage = () => {
   };
 
   if (!currentDialogue) return null;
-  const currentSpeaker = speakerConfig[currentDialogue.speaker];
+
+  const currentSpeaker = (isBattle && battlePhase === 'attack') 
+    ? speakerConfig.player 
+    : speakerConfig[currentDialogue.speaker];
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -383,9 +483,33 @@ const ComputerLabPage = () => {
   }, [enemyHp, playerHp, isBattle]);
 
   const handleNextDialogue = () => {
-    if (step !== 2) return;
+    // 1. 인트로 단계이거나 승리/패배 연출 중에는 클릭 방지
+    if (step !== 2 || showVictoryEffect || showDefeatEffect) return;
   
-    // 배틀 상황일 때
+    // 2. 패배 대사 체크: 현재 대사가 패배 상황이면 클릭 시 오버레이를 띄우고 중단
+    if (currentDialogue.situation === 'defeat') {
+      setShowDefeatEffect(true);
+      return; // 더 이상 currentLine이 증가하지 않도록 여기서 종료합니다.
+    }
+  
+    // 3. 승리 특수 연출 체크: 선생님의 승리 확정 대사인지 확인
+    const isTeachersLastWords = 
+      currentDialogue.speaker === 'teachers' && 
+      currentDialogue.situation === 'victory' &&
+      currentDialogue.text === '알겠어. 말리지 않을게';
+  
+    if (isTeachersLastWords) {
+      setCurrentBg(background2_1); // 배경 변경
+      setShowVictoryEffect(true);  // 블러 및 문구 표시
+  
+      setTimeout(() => {
+        setShowVictoryEffect(false); 
+        setCurrentLine(prev => prev + 1); // 2초 후 다음 대사(세바스찬)로 이동
+      }, 2000); 
+      return;
+    }
+  
+    // 4. 배틀 상황일 때의 클릭 로직
     if (isBattle) {
       if (battlePhase === 'intro') {
         setBattlePhase('idle');
@@ -399,32 +523,23 @@ const ComputerLabPage = () => {
       }
   
       if (battlePhase === 'attack') {
-        // 클릭 시 적의 체력을 10000씩 감소 (마지막에 0이 되면 위 useEffect가 감지)
         setEnemyHp(prev => Math.max(0, prev - 10000));
-        
-        /* (참고) 플레이어의 체력을 깎고 싶다면 아래처럼 사용하세요:
-           setPlayerHp(prev => Math.max(0, prev - 20000));
-        */
-        
         setBattlePhase('idle');
         return;
       }
     }
   
-    // 일반 대사(victory, defeat 포함) 흐름
+    // 5. 일반 대사 흐름 로직
     if (currentLine < dialogues.length - 1) {
-      setCurrentLine(currentLine + 1);
+      setCurrentLine(prev => prev + 1);
     }
   };
 
   const showMic = isSpeak || (isBattle && battlePhase === 'attack');
   const showDialogueBox = !isBattle || (isBattle && battlePhase !== 'idle');
 
-  
-  
-
   return (
-    <Container $bg={background2} onClick={handleNextDialogue}>
+    <Container $bg={currentBg} onClick={handleNextDialogue}>
       <GlobalStyle />
       {isBattle && (
         <BattleHUD>
@@ -462,14 +577,37 @@ const ComputerLabPage = () => {
         </IntroOverlay> 
       )}
 
+      {showVictoryEffect && (
+          <VictorySpecialOverlay>
+            <VictoryTitle>성공</VictoryTitle>
+            <VictorySubTitle>실습실이 폭파되었다!</VictorySubTitle>
+          </VictorySpecialOverlay>
+        )}
+        {showDefeatEffect && (
+          <DefeatSpecialOverlay>
+            <DefeatTitle>패배</DefeatTitle>
+            <DefeatSubTitle>다시 플레이 하시겠습니까?</DefeatSubTitle>
+            <ButtonContainer>
+              {/* '예' 버튼 클릭 시 페이지를 새로고침하거나 상태를 초기화하는 함수를 연결하세요 */}
+              <YesButton>예</YesButton>
+              <NoButton onClick={() => console.log("종료")}>아니오</NoButton>
+            </ButtonContainer>
+          </DefeatSpecialOverlay>
+        )}
+
       {/* STEP 2: 대화창 */}
-      {step === 2 && (
+      {step === 2 && !showVictoryEffect && (
         <>
-          <StandingCharacter
-            src={isBattle ? playerbattle1 : playerImg}
-            alt="Character"
-          />
-          <NpcCharacter2 src={npc2_1} alt="Character"/>      
+          {!isLastLine && (
+            <StandingCharacter
+              src={isBattle ? playerbattle1 : playerImg}
+              alt="Player"
+            />
+          )}
+          <NpcCharacter2 
+            src={isLastLine ? npc1_2 : npc2_1} 
+            alt="NPC" 
+          />   
           {showDialogueBox && (
           <DialogueSection>
             {/* 좌측 프로필 */}
